@@ -11,11 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Fix API keys filename
+      - name: Fix API keys
         run: |
-          if [ -f "API_KEYS" ]; then
-            cp API_KEYS API_KEYs
-          fi
+          # Создаём файл в том формате, который ищет сборка
+          echo "API_ID=${{ secrets.API_ID }}" > TMessagesProj/API_KEYS
+          echo "API_HASH=${{ secrets.API_HASH }}" >> TMessagesProj/API_KEYS
+          # Копируем во все возможные места
+          cp TMessagesProj/API_KEYS ./API_KEYS 2>/dev/null || true
+          cp TMessagesProj/API_KEYS ./API_KEYs 2>/dev/null || true
       
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -26,7 +29,6 @@ jobs:
       - name: Build with Gradle
         run: |
           chmod +x gradlew
-          # Убираем MaxPermSize
           sed -i 's/-XX:MaxPermSize=[^ ]*//g' gradle.properties || true
           ./gradlew assembleRelease
           
