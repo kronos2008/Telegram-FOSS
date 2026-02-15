@@ -19,18 +19,16 @@ jobs:
 
       - name: Fix Gradle Wrapper (MaxPermSize)
         run: |
-          # Эта команда удаляет проблемную строчку, которая мешала сборке
           sed -i 's/-XX:MaxPermSize=[^ ]*//g' gradle.properties || true
 
       - name: Fix API keys filename
         run: |
-          # Создаем файл с API ключами из секретов GitHub
-          echo "APP_ID = ${{ secrets.API_ID }}" > TMessagesProj/API_KEYS
-          echo "APP_HASH = ${{ secrets.API_HASH }}" >> TMessagesProj/API_KEYS
+          echo "APP_ID = ${{ secrets.API_ID }}" > ./API_KEYS
+          echo "APP_HASH = ${{ secrets.API_HASH }}" >> ./API_KEYS
+          cp ./API_KEYS TMessagesProj/API_KEYS 2>/dev/null || true
 
       - name: Fix compileSdkVersion
         run: |
-          # Добавляем недостающую строчку, которая есть в любом нормальном проекте
           sed -i '/android {/a \ \ \ \ compileSdkVersion 33' TMessagesProj/build.gradle || true
 
       - name: Build with Gradle
@@ -42,6 +40,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: my-telegram-foss
-          # Этот путь найдет ЛЮБОЙ .apk файл внутри проекта
-          path: |
-            **/*.apk
+          path: "**/*.apk"
