@@ -31,11 +31,10 @@ jobs:
         run: |
           sed -i '/android {/a \ \ \ \ compileSdkVersion 33' TMessagesProj/build.gradle || true
 
-      - name: Create missing alpha_dec.c
+      - name: Replace broken libwebp
         run: |
-          mkdir -p TMessagesProj/jni/libwebp/src/dec
-          touch TMessagesProj/jni/libwebp/src/dec/alpha_dec.c
-          echo "// dummy file" > TMessagesProj/jni/libwebp/src/dec/alpha_dec.c
+          rm -rf TMessagesProj/jni/libwebp
+          git clone https://chromium.googlesource.com/webm/libwebp TMessagesProj/jni/libwebp
 
       - name: Build with Gradle
         run: |
