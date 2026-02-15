@@ -20,9 +20,7 @@ jobs:
       
       - name: KILL THE BUG
         run: |
-          # Комментим строку 103
           sed -i '103s/^/\/\//' TMessagesProj/build.gradle || true
-          # Вставляем ключи
           sed -i '/android {/a \ \ \ \ defaultConfig {\n \ \ \ \ \ \ buildConfigField "int", "APP_ID", "${{ secrets.API_ID }}"\n \ \ \ \ \ \ buildConfigField "String", "APP_HASH", "\"${{ secrets.API_HASH }}\""\n \ \ \ \ }' TMessagesProj/build.gradle || true
       
       - name: Set up JDK 17
@@ -31,21 +29,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           
-      - name: Build with Gradle (ULTIMATE DEBUG)
+      - name: Build with Gradle
         run: |
           chmod +x gradlew
           sed -i 's/-XX:MaxPermSize=[^ ]*//g' gradle.properties || true
-          echo "=== Содержимое build.gradle (первые 50 строк) ==="
-          cat -n TMessagesProj/build.gradle | head -50
-          echo "=== Запускаем сборку с детальным логом ==="
-          ./gradlew assembleRelease --stacktrace --info --no-daemon || true
-          echo "=== Если упало - смотрим логи демона ==="
-          ls -la /home/runner/.gradle/daemon/ 2>/dev/null || true
-          tail -50 /home/runner/.gradle/daemon/*/daemon-*.log 2>/dev/null || true
+          ./gradlew assembleRelease
           
-      - name: Upload APK (если вдруг собралось)
-        if: success()
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: my-telegram
-          path: "**/*.apk"
+          path: |
+            TMessagesProj/build/outputs/apk/**/*.apk
+            **/build/outputs/apk/**/*.apk
