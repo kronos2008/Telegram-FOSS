@@ -23,6 +23,10 @@ jobs:
           sed -i '103s/^/\/\//' TMessagesProj/build.gradle || true
           sed -i '/android {/a \ \ \ \ defaultConfig {\n \ \ \ \ \ \ buildConfigField "int", "APP_ID", "${{ secrets.API_ID }}"\n \ \ \ \ \ \ buildConfigField "String", "APP_HASH", "\"${{ secrets.API_HASH }}\""\n \ \ \ \ }' TMessagesProj/build.gradle || true
       
+      - name: FIX GRADLE (добавляем compileSdkVersion)
+        run: |
+          sed -i '/android {/a \ \ \ \ compileSdkVersion 33' TMessagesProj/build.gradle || true
+      
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
