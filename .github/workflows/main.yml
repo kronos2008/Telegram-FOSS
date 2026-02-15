@@ -20,6 +20,8 @@ jobs:
       - name: Build with Gradle
         run: |
           chmod +x gradlew
+          # Убираем MaxPermSize (он не нужен в Java 17)
+          sed -i 's/-XX:MaxPermSize=[^ ]*//g' gradle.properties || true
           ./gradlew assembleRelease
           
       - name: Upload APK
