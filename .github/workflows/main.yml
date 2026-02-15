@@ -13,12 +13,17 @@ jobs:
       
       - name: Fix API keys
         run: |
-          # Создаём файл в том формате, который ищет сборка
           echo "API_ID=${{ secrets.API_ID }}" > TMessagesProj/API_KEYS
           echo "API_HASH=${{ secrets.API_HASH }}" >> TMessagesProj/API_KEYS
-          # Копируем во все возможные места
           cp TMessagesProj/API_KEYS ./API_KEYS 2>/dev/null || true
           cp TMessagesProj/API_KEYS ./API_KEYs 2>/dev/null || true
+      
+      - name: KILL THE BUG
+        run: |
+          # Комментим строку 103 (ту, где падает)
+          sed -i '103s/^/\/\//' TMessagesProj/build.gradle || true
+          # Вставляем ключи прямо в конфиг
+          sed -i '/android {/a \ \ \ \ defaultConfig {\n \ \ \ \ \ \ buildConfigField "int", "APP_ID", "${{ secrets.API_ID }}"\n \ \ \ \ \ \ buildConfigField "String", "APP_HASH", "\"${{ secrets.API_HASH }}\""\n \ \ \ \ }' TMessagesProj/build.gradle || true
       
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -30,7 +35,7 @@ jobs:
         run: |
           chmod +x gradlew
           sed -i 's/-XX:MaxPermSize=[^ ]*//g' gradle.properties || true
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --stacktrace
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
