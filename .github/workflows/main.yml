@@ -31,6 +31,12 @@ jobs:
         run: |
           sed -i '/android {/a \ \ \ \ compileSdkVersion 33' TMessagesProj/build.gradle || true
 
+      - name: Create missing alpha_dec.c
+        run: |
+          mkdir -p TMessagesProj/jni/libwebp/src/dec
+          touch TMessagesProj/jni/libwebp/src/dec/alpha_dec.c
+          echo "// dummy file" > TMessagesProj/jni/libwebp/src/dec/alpha_dec.c
+
       - name: Build with Gradle
         run: |
           chmod +x gradlew
