@@ -20,7 +20,10 @@ jobs:
       
       - name: KILL THE BUG
         run: |
+          # Комментим строки, где падает
+          sed -i '68s/^/\/\//' TMessagesProj/build.gradle || true
           sed -i '103s/^/\/\//' TMessagesProj/build.gradle || true
+          # Вставляем ключи
           sed -i '/android {/a \ \ \ \ defaultConfig {\n \ \ \ \ \ \ buildConfigField "int", "APP_ID", "${{ secrets.API_ID }}"\n \ \ \ \ \ \ buildConfigField "String", "APP_HASH", "\"${{ secrets.API_HASH }}\""\n \ \ \ \ }' TMessagesProj/build.gradle || true
       
       - name: FIX GRADLE (добавляем compileSdkVersion)
