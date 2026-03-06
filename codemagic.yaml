@@ -10,23 +10,13 @@ workflows:
         script: |
           brew install ninja cmake
 
-      - name: Build native libs (simplified)
-        script: |
-          cd TMessagesProj/jni
-          export NDK=$ANDROID_HOME/ndk-bundle
-          # Пытаемся собрать только необходимое
-          chmod +x *.sh
-          ./build_libvpx_clang.sh || true
-          ./build_ffmpeg_clang.sh || true
-          ./patch_ffmpeg.sh || true
-          ./patch_boringssl.sh || true
-          ./build_boringssl.sh || true
-          cd ../../
-
-      - name: Build APK
+      # Сборка без NDK (используем то, что есть)
+      - name: Build APK (without NDK)
         script: |
           chmod +x gradlew
-          ./gradlew assembleAfatRelease -x compileDebugNdk -x compileReleaseNdk
+          # Чистим и собираем, пропуская NDK задачи
+          ./gradlew clean
+          ./gradlew assembleAfatRelease -x compileDebugNdk -x compileReleaseNdk -x externalNativeBuild
 
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
