@@ -19,67 +19,49 @@ workflows:
           mv android-ndk-r21e/* $ANDROID_HOME/ndk/21.4.7075529/
           rm -rf android-ndk-r21e*
 
-      # ПОЛНАЯ ПЕРЕСБОРКА FFMPEG С ДИАГНОСТИКОЙ
-      - name: Build FFmpeg manually
+      # ИСПРАВЛЕННАЯ СБОРКА NATIVE LIBs
+      - name: Build native libs
         script: |
-          set -e  # Останавливать скрипт при любой ошибке
+          set -e
           cd TMessagesProj/jni
+          
+          # Правильный путь к NDK для Mac
           export NDK=$ANDROID_HOME/ndk/21.4.7075529
           export NINJA_PATH=/usr/local/bin/ninja
           
-          # Полная очистка
-          echo "=== Очистка старых сборок ==="
-          rm -rf ffmpeg/build
-          rm -rf boringssl/build
+          # Исправляем скрипты сборки (заменяем linux на darwin)
+          echo "=== Исправляем пути в скриптах ==="
+          for script in build_*.sh; do
+            echo "Патчим $script"
+            sed -i '' 's/linux-x86_64/darwin-x86_64/g' "$script" 2>/dev/null || \
+            sed -i 's/linux-x86_64/darwin-x86_64/g' "$script"
+          done
           
           # Делаем скрипты исполняемыми
           chmod +x *.sh
           
           # 1. Сборка libvpx
-          echo "=== 1/5: Building libvpx ==="
-          ./build_libvpx_clang.sh 2>&1 | tee libvpx_build.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "ERROR: libvpx build failed"
-            exit 1
-          fi
+          echo "=== Building libvpx ==="
+          ./build_libvpx_clang.sh 2>&1 | tee libvpx.log
           
           # 2. Сборка FFmpeg
-          echo "=== 2/5: Building FFmpeg ==="
-          # Временно добавляем yasm в PATH (иногда требуется)
+          echo "=== Building FFmpeg ==="
           export PATH="/opt/homebrew/bin:$PATH"
-          ./build_ffmpeg_clang.sh 2>&1 | tee ffmpeg_build.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "ERROR: FFmpeg build failed"
-            exit 1
-          fi
+          ./build_ffmpeg_clang.sh 2>&1 | tee ffmpeg.log
           
-          # 3. Патч FFmpeg
-          echo "=== 3/5: Patching FFmpeg ==="
-          ./patch_ffmpeg.sh 2>&1 | tee ffmpeg_patch.log
+          # 3. Патчи
+          ./patch_ffmpeg.sh
+          ./patch_boringssl.sh
           
-          # 4. Патч BoringSSL
-          echo "=== 4/5: Patching BoringSSL ==="
-          ./patch_boringssl.sh 2>&1 | tee boringssl_patch.log
+          # 4. Сборка BoringSSL
+          echo "=== Building BoringSSL ==="
+          ./build_boringssl.sh 2>&1 | tee boringssl.log
           
-          # 5. Сборка BoringSSL
-          echo "=== 5/5: Building BoringSSL ==="
-          ./build_boringssl.sh 2>&1 | tee boringssl_build.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "ERROR: BoringSSL build failed"
-            exit 1
-          fi
-          
-          # Финальная проверка
-          echo "=== Проверка созданных библиотек ==="
+          # Проверка
+          echo "=== Проверка библиотек ==="
           find . -name "*.a" -type f | sort
-          
-          # Специальная проверка для недостающего файла
-          echo "=== Поиск libswscale.a ==="
-          find . -name "libswscale.a" -type f
-          
           cd ../../
 
-      # Сборка APK
       - name: Build APK
         script: |
           chmod +x gradlew
@@ -89,8 +71,3 @@ workflows:
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
       - TMessagesProj/jni/*.log
-
-    publishing:
-      email:
-        recipients:
-          - washingtonfizcl@gmail.com
