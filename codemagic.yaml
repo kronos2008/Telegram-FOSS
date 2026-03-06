@@ -11,9 +11,18 @@ workflows:
         script: |
           brew install ninja cmake go
 
-      # Скачиваем нужную версию NDK
+      # Устанавливаем Java 11 для sdkmanager
+      - name: Setup Java 11
+        script: |
+          brew install openjdk@11
+          export JAVA_HOME=/opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home
+          echo 'export JAVA_HOME=/opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home' >> ~/.zshrc
+          source ~/.zshrc
+
+      # Скачиваем нужную версию NDK (с Java 11)
       - name: Setup NDK
         script: |
+          export JAVA_HOME=/opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home
           echo "y" | $ANDROID_HOME/tools/bin/sdkmanager "ndk;21.4.7075529"
 
       # Сборка нативных зависимостей
