@@ -1,33 +1,34 @@
 workflows:
   telegram-foss-workflow:
-    name: Build Telegram-FOSS APK (Java only)
-    max_build_duration: 30
+    name: Build Telegram-FOSS APK
+    max_build_duration: 45
     environment:
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
     scripts:
-      # 1. Только самое необходимое
+      # 1. Только базовые инструменты
       - name: Install basic tools
         script: |
           brew install cmake
 
-      # 2. Создание API_KEYS (ЗАМЕНИ НА СВОИ!)
+      # 2. Создание API_KEYS (СНОВА ВСТАВЬ СВОИ ЗНАЧЕНИЯ!)
       - name: Create API_KEYS file
         script: |
-          echo "APP_ID = 12345" > API_KEYS
-          echo "APP_HASH = aaaaaaaabbbbbbccccccfffffff001122" >> API_KEYS
+          echo "APP_ID = 32444842" > API_KEYS
+          echo "APP_HASH = cbf37857fa6fe0fa2861de75661d2509" >> API_KEYS
+          echo "✅ API_KEYS создан:"
           cat API_KEYS
 
-      # 3. Полное отключение нативной сборки
-      - name: Disable native build completely
+      # 3. Подготовка окружения (БЕЗ ИЗМЕНЕНИЯ build.gradle)
+      - name: Prepare environment
         script: |
-          # Создаём пустые заглушки для библиотек
+          # Создаем структуру папок для библиотек, чтобы обмануть систему
           mkdir -p TMessagesProj/jni/ffmpeg/build/armeabi-v7a/lib
           mkdir -p TMessagesProj/jni/ffmpeg/build/arm64-v8a/lib
           mkdir -p TMessagesProj/jni/ffmpeg/build/x86/lib
           mkdir -p TMessagesProj/jni/ffmpeg/build/x86_64/lib
           
-          # Создаём пустые .a файлы
+          # Создаем пустые файлы .a (просто touch)
           for arch in armeabi-v7a arm64-v8a x86 x86_64; do
             touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libavformat.a
             touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libavcodec.a
@@ -35,24 +36,32 @@ workflows:
             touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libswresample.a
             touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libswscale.a
           done
+          echo "✅ Заглушки для библиотек созданы"
 
-      # 4. Патчим build.gradle для пропуска NDK
-      - name: Patch build.gradle to skip NDK
+      # 4. ПРОВЕРКА: покажем оригинальный build.gradle (первые 150 строк)
+      - name: Show original build.gradle
         script: |
-          # Отключаем externalNativeBuild
-          sed -i '' '/externalNativeBuild {/,/}/d' TMessagesProj/build.gradle
-          # Убираем зависимости от NDK
-          sed -i '' '/abiFilters/d' TMessagesProj/build.gradle
-          
-          echo "=== Patched build.gradle ==="
+          echo "=== Содержимое TMessagesProj/build.gradle (первые 150 строк) ==="
+          head -150 TMessagesProj/build.gradle
+          echo "=== Конец вывода build.gradle ==="
 
-      # 5. Сборка APK (только Java)
-      - name: Build APK (Java only)
+      # 5. Сборка APK (БЕЗ ПАТЧА build.gradle)
+      - name: Build APK (safe mode)
         script: |
           chmod +x gradlew
+          echo "🧹 Clean build..."
           ./gradlew clean
-          # Собираем без NDK задач
-          ./gradlew assembleAfatRelease -x externalNativeBuild -x compileDebugNdk -x compileReleaseNdk -x ndkBuild --stacktrace
+          
+          echo "🏗️ Building APK with NDK disabled via flags..."
+          # Собираем, отключая все NDK задачи через флаги командной строки
+          ./gradlew assembleAfatRelease \
+            -x externalNativeBuild \
+            -x compileDebugNdk \
+            -x compileReleaseNdk \
+            -x ndkBuild \
+            -x generateJsonModel \
+            --stacktrace
 
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
+      - "*.log"
