@@ -19,61 +19,46 @@ workflows:
           mv android-ndk-r21e/* $ANDROID_HOME/ndk/21.4.7075529/
           rm -rf android-ndk-r21e*
 
-      - name: Build native libs
+      # ПОДРОБНАЯ СБОРКА НАТИВНЫХ ЗАВИСИМОСТЕЙ
+      - name: Build native libs with debug
         script: |
           cd TMessagesProj/jni
           export NDK=$ANDROID_HOME/ndk/21.4.7075529
           export NINJA_PATH=/usr/local/bin/ninja
+          
+          # Делаем все скрипты исполняемыми
           chmod +x *.sh
-          ./build_libvpx_clang.sh
-          ./build_ffmpeg_clang.sh
-          ./patch_ffmpeg.sh
-          ./patch_boringssl.sh
-          ./build_boringssl.sh
+          
+          # Чистим предыдущие сборки
+          rm -rf ffmpeg/build
+          rm -rf boringssl/build
+          
+          # Собираем libvpx с выводом ошибок
+          echo "=== Building libvpx ==="
+          ./build_libvpx_clang.sh 2>&1 | tee libvpx.log
+          
+          # Собираем FFmpeg с подробным выводом
+          echo "=== Building FFmpeg ==="
+          ./build_ffmpeg_clang.sh 2>&1 | tee ffmpeg.log
+          
+          # Применяем патчи
+          echo "=== Patching FFmpeg ==="
+          ./patch_ffmpeg.sh 2>&1 | tee patch_ffmpeg.log
+          
+          echo "=== Patching BoringSSL ==="
+          ./patch_boringssl.sh 2>&1 | tee patch_boringssl.log
+          
+          # Собираем BoringSSL
+          echo "=== Building BoringSSL ==="
+          ./build_boringssl.sh 2>&1 | tee boringssl.log
+          
+          # Проверяем, создались ли нужные файлы
+          echo "=== Проверка созданных библиотек ==="
+          find . -name "*.a" -type f | sort
+          
           cd ../../
 
-      # ПРОВЕРЯЕМ ОБА ВАРИАНТА ФАЙЛА
-      - name: Check both API_KEYS files
-        script: |
-          echo "=== Поиск API_KEYS ==="
-          echo "Корневая папка: $(pwd)"
-          echo "Содержимое:"
-          ls -la
-          echo ""
-          echo "Поиск API_KEYS (без расширения):"
-          find . -name "API_KEYS" -type f 2>/dev/null || echo "Не найден"
-          echo ""
-          echo "Поиск API_KEYS.txt:"
-          find . -name "API_KEYS.txt" -type f 2>/dev/null || echo "Не найден"
-          echo ""
-          echo "Содержимое API_KEYS.txt (если есть):"
-          cat API_KEYS.txt 2>/dev/null || echo "Файл не существует"
-          echo ""
-          echo "Содержимое API_KEYS (если есть):"
-          cat API_KEYS 2>/dev/null || echo "Файл не существует"
-
-      # КОПИРУЕМ ЛЮБОЙ НАЙДЕННЫЙ ФАЙЛ
-      - name: Copy keys to TMessagesProj
-        script: |
-          if [ -f "API_KEYS.txt" ]; then
-            echo "Копируем API_KEYS.txt"
-            cp API_KEYS.txt TMessagesProj/API_KEYS
-          elif [ -f "API_KEYS" ]; then
-            echo "Копируем API_KEYS"
-            cp API_KEYS TMessagesProj/
-          else
-            echo "НИ ОДИН ФАЙЛ НЕ НАЙДЕН!"
-            exit 1
-          fi
-
-      # ПАТЧИМ build.gradle
-      - name: Patch build.gradle
-        script: |
-          echo "Патчим build.gradle для правильного пути"
-          sed -i '' 's|\.\/API_KEYS|\.\/TMessagesProj\/API_KEYS|g' TMessagesProj/build.gradle 2>/dev/null || \
-          sed -i 's|\.\/API_KEYS|\.\/TMessagesProj\/API_KEYS|g' TMessagesProj/build.gradle
-
-      # СБОРКА
+      # Сборка APK
       - name: Build APK
         script: |
           chmod +x gradlew
@@ -82,6 +67,7 @@ workflows:
 
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
+      - TMessagesProj/jni/*.log
 
     publishing:
       email:
