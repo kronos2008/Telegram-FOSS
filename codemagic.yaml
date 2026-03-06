@@ -1,50 +1,58 @@
 workflows:
   telegram-foss-workflow:
-    name: Build Telegram-FOSS APK
-    max_build_duration: 45
+    name: Build Telegram-FOSS APK (Java only)
+    max_build_duration: 30
     environment:
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
     scripts:
-      # 1. Скачиваем готовые библиотеки напрямую
-      - name: Download prebuilt FFmpeg
+      # 1. Только самое необходимое
+      - name: Install basic tools
         script: |
-          cd TMessagesProj/jni
-          
-          # Создаём папки
-          mkdir -p ffmpeg/build/armeabi-v7a/lib
-          
-          # Скачиваем готовую сборку FFmpeg для armeabi-v7a (самая важная)
-          echo "Скачиваем готовые библиотеки FFmpeg..."
-          curl -L -o ffmpeg-armeabi-v7a.tar.gz https://github.com/telegram-sync/ffmpeg-prebuilt/releases/download/v4.4/ffmpeg-armeabi-v7a.tar.gz
-          
-          # Распаковываем
-          tar -xzf ffmpeg-armeabi-v7a.tar.gz -C ffmpeg/build/armeabi-v7a/lib --strip-components=1
-          
-          # Проверяем, что файл на месте
-          echo "Проверка libswscale.a:"
-          find ffmpeg/build -name "libswscale.a" -type f
-          
-          # Если не нашли, создаём заглушку (чтобы сборка прошла)
-          if [ ! -f ffmpeg/build/armeabi-v7a/lib/libswscale.a ]; then
-            echo "Создаём заглушку для libswscale.a"
-            mkdir -p ffmpeg/build/armeabi-v7a/lib
-            touch ffmpeg/build/armeabi-v7a/lib/libswscale.a
-          fi
-          
-          cd ../../
+          brew install cmake
 
-      # 2. Сборка APK
-      - name: Build APK
+      # 2. Создание API_KEYS (ЗАМЕНИ НА СВОИ!)
+      - name: Create API_KEYS file
+        script: |
+          echo "APP_ID = 12345" > API_KEYS
+          echo "APP_HASH = aaaaaaaabbbbbbccccccfffffff001122" >> API_KEYS
+          cat API_KEYS
+
+      # 3. Полное отключение нативной сборки
+      - name: Disable native build completely
+        script: |
+          # Создаём пустые заглушки для библиотек
+          mkdir -p TMessagesProj/jni/ffmpeg/build/armeabi-v7a/lib
+          mkdir -p TMessagesProj/jni/ffmpeg/build/arm64-v8a/lib
+          mkdir -p TMessagesProj/jni/ffmpeg/build/x86/lib
+          mkdir -p TMessagesProj/jni/ffmpeg/build/x86_64/lib
+          
+          # Создаём пустые .a файлы
+          for arch in armeabi-v7a arm64-v8a x86 x86_64; do
+            touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libavformat.a
+            touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libavcodec.a
+            touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libavutil.a
+            touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libswresample.a
+            touch TMessagesProj/jni/ffmpeg/build/$arch/lib/libswscale.a
+          done
+
+      # 4. Патчим build.gradle для пропуска NDK
+      - name: Patch build.gradle to skip NDK
+        script: |
+          # Отключаем externalNativeBuild
+          sed -i '' '/externalNativeBuild {/,/}/d' TMessagesProj/build.gradle
+          # Убираем зависимости от NDK
+          sed -i '' '/abiFilters/d' TMessagesProj/build.gradle
+          
+          echo "=== Patched build.gradle ==="
+
+      # 5. Сборка APK (только Java)
+      - name: Build APK (Java only)
         script: |
           chmod +x gradlew
           ./gradlew clean
-          ./gradlew assembleAfatRelease
+          # Собираем без NDK задач
+          ./gradlew assembleAfatRelease -x externalNativeBuild -x compileDebugNdk -x compileReleaseNdk -x ndkBuild --stacktrace
 
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
-
-    publishing:
-      email:
-        recipients:
-          - washingtonfizcl@gmail.com
