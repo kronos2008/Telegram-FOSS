@@ -21,21 +21,26 @@ workflows:
           mv android-ndk-r21e/* $ANDROID_HOME/ndk/21.4.7075529/
           rm -rf android-ndk-r21e*
 
-      # 3. Создание local.properties с правильными путями
-      - name: Setup local.properties
+      # 3. Настройка NDK (БЕЗ ndk.dir - убираем предупреждения)
+      - name: Setup NDK version
         script: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "ndk.dir=$ANDROID_HOME/ndk/21.4.7075529" >> local.properties
+          # Устанавливаем NDK версию в gradle.properties (современный способ)
+          echo "android.ndkVersion=21.4.7075529" >> gradle.properties
+          echo "=== local.properties ==="
           cat local.properties
+          echo "=== gradle.properties ==="
+          cat gradle.properties
 
       # 4. Создание API_KEYS (ЗАМЕНИ НА СВОИ ЗНАЧЕНИЯ!)
       - name: Create API_KEYS file
         script: |
           echo "APP_ID = 32444842" > API_KEYS
           echo "APP_HASH = cbf37857fa6fe0fa2861de75661d2509" >> API_KEYS
+          echo "=== API_KEYS ==="
           cat API_KEYS
 
-      # 5. Подготовка нативных зависимостей (исправленная)
+      # 5. Подготовка нативных зависимостей
       - name: Prepare native libs
         script: |
           cd TMessagesProj/jni
@@ -54,7 +59,7 @@ workflows:
           echo "=== Building libvpx ==="
           ./build_libvpx_clang.sh 2>&1 | tee libvpx.log || echo "libvpx build failed but continuing"
           
-          # Сборка FFmpeg с дополнительными флагами
+          # Сборка FFmpeg
           echo "=== Building FFmpeg ==="
           export CFLAGS="-Wno-error=unused-command-line-argument"
           ./build_ffmpeg_clang.sh 2>&1 | tee ffmpeg.log || echo "FFmpeg build failed but continuing"
@@ -68,42 +73,50 @@ workflows:
           
           cd ../../
 
-      # 6. Патчинг build.gradle (убираем проблемные места)
+      # 6. Патчинг build.gradle
       - name: Patch Gradle files
         script: |
-          # Убираем проверки на NDK из build.gradle
+          # Убираем проблемные места
           sed -i '' '/if.*externalNativeBuild/,/}/d' TMessagesProj/build.gradle 2>/dev/null || true
           sed -i '' '/abiFilters/d' TMessagesProj/build.gradle 2>/dev/null || true
           
-          # Добавляем флаг для пропуска NDK
+          # Добавляем CMake аргументы
           echo "" >> gradle.properties
-          echo "# NDK settings" >> gradle.properties
-          echo "android.externalNativeBuild.cmake.arguments=-DANDROID_PLATFORM=android-21,-DANDROID_TOOLCHAIN=clang" >> gradle.properties
-          
-          echo "=== patched build.gradle ==="
-          head -50 TMessagesProj/build.gradle | grep -i ndk || true
+          echo "# CMake arguments" >> gradle.properties
+          echo "android.externalNativeBuild.cmake.arguments=-DANDROID_PLATFORM=android-21,-DANDROID_TOOLCHAIN=clang,-DANDROID_STL=c++_shared" >> gradle.properties
 
-      # 7. ФИНАЛЬНАЯ СБОРКА
+      # 7. Поиск доступных задач (диагностика)
+      - name: List available tasks
+        script: |
+          chmod +x gradlew
+          ./gradlew tasks | grep -E "assemble|ndk|external" | head -20
+
+      # 8. ФИНАЛЬНАЯ СБОРКА (несколько попыток)
       - name: Build APK
         script: |
           chmod +x gradlew
           
-          # Пробуем разные варианты сборки
-          echo "=== Попытка 1: с пропуском NDK ==="
+          # Попытка 1: стандартная сборка
+          echo "=== Попытка 1: Стандартная сборка ==="
           ./gradlew clean
-          ./gradlew assembleAfatRelease -x compileDebugNdk -x compileReleaseNdk -x externalNativeBuild || \
+          ./gradlew assembleAfatRelease 2>&1 | tee build.log || \
           
-          echo "=== Попытка 2: без пропуска ==="
-          ./gradlew assembleAfatRelease || \
+          # Попытка 2: без NDK задач
+          echo "=== Попытка 2: Без NDK ==="
+          ./gradlew assembleAfatRelease -x compileDebugNdk -x compileReleaseNdk -x externalNativeBuild 2>&1 | tee build2.log || \
           
-          echo "=== Попытка 3: только Java компиляция ==="
-          ./gradlew assembleAfatRelease -x ndkBuild -x generateJsonModel
+          # Попытка 3: только Java
+          echo "=== Попытка 3: Только Java ==="
+          ./gradlew assembleAfatRelease -x ndkBuild -x generateJsonModel -x externalNativeBuild 2>&1 | tee build3.log
 
     artifacts:
-      # Пути к артефактам - исправлено! (убраны звездочки)
-      - TMessagesProj/build/outputs/apk/afat/release/
+      # Сохраняем всё, что может пригодиться
+      - TMessagesProj/build/outputs/apk/afat/release/*.apk
       - TMessagesProj/jni/*.log
       - "*.log"
+      - build.log
+      - build2.log
+      - build3.log
 
     publishing:
       email:
