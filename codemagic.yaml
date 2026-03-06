@@ -5,16 +5,19 @@ workflows:
     environment:
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
-      android_sdk:
-        ndk: 21.4.7075529
     scripts:
-      # 1. Устанавливаем необходимые инструменты
-      - name: Install build tools
+      # Устанавливаем всё необходимое
+      - name: Install tools
         script: |
           brew install ninja cmake go
 
-      # 2. Сборка нативных зависимостей
-      - name: Build native dependencies
+      # Скачиваем нужную версию NDK
+      - name: Setup NDK
+        script: |
+          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager "ndk;21.4.7075529"
+
+      # Сборка нативных зависимостей
+      - name: Build native libs
         script: |
           cd TMessagesProj/jni
           export NDK=$ANDROID_HOME/ndk/21.4.7075529
@@ -27,7 +30,7 @@ workflows:
           ./build_boringssl.sh
           cd ../../
 
-      # 3. Сборка APK
+      # Сборка APK
       - name: Build APK
         script: |
           chmod +x gradlew
