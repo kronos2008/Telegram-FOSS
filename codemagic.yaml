@@ -11,15 +11,30 @@ workflows:
         script: |
           brew install ninja cmake go wget
 
-      # Скачиваем NDK вручную (без sdkmanager)
+      # Скачиваем NDK вручную
       - name: Download NDK manually
         script: |
           cd $HOME
           wget https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip
           unzip -q android-ndk-r21e-darwin-x86_64.zip
-          mv android-ndk-r21e $ANDROID_HOME/ndk/21.4.7075529
-          rm android-ndk-r21e-darwin-x86_64.zip
+          mkdir -p $ANDROID_HOME/ndk/21.4.7075529
+          mv android-ndk-r21e/* $ANDROID_HOME/ndk/21.4.7075529/
+          rm -rf android-ndk-r21e android-ndk-r21e-darwin-x86_64.zip
           ls -la $ANDROID_HOME/ndk/
+
+      # ПРОВЕРЯЕМ, ЧТО ФАЙЛ API_KEYS ЕСТЬ
+      - name: Check API_KEYS file
+        script: |
+          echo "Current directory: $(pwd)"
+          echo "Files in root:"
+          ls -la
+          echo "Content of API_KEYS:"
+          cat API_KEYS || echo "API_KEYS file not found!"
+
+      # КОПИРУЕМ API_KEYS В TMessagesProj (на всякий случай)
+      - name: Copy API_KEYS to TMessagesProj
+        script: |
+          cp API_KEYS TMessagesProj/ || echo "Copy failed, but continuing..."
 
       # Сборка нативных зависимостей
       - name: Build native libs
@@ -39,6 +54,10 @@ workflows:
       - name: Build APK
         script: |
           chmod +x gradlew
+          # Показываем, где ищем файл
+          echo "Looking for API_KEYS in: $(pwd)"
+          ls -la TMessagesProj/ | grep API
+          # Собираем
           ./gradlew clean
           ./gradlew assembleAfatRelease
 
