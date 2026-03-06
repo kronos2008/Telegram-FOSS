@@ -26,12 +26,14 @@ workflows:
         script: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_HOME/ndk/21.4.7075529" >> local.properties
+          cat local.properties
 
       # 4. Создание API_KEYS (ЗАМЕНИ НА СВОИ ЗНАЧЕНИЯ!)
       - name: Create API_KEYS file
         script: |
           echo "APP_ID = 32444842" > API_KEYS
           echo "APP_HASH = cbf37857fa6fe0fa2861de75661d2509" >> API_KEYS
+          cat API_KEYS
 
       # 5. Подготовка нативных зависимостей (исправленная)
       - name: Prepare native libs
@@ -42,6 +44,7 @@ workflows:
           
           # Патчим скрипты (меняем linux на darwin)
           for script in build_*.sh; do
+            echo "Патчим $script"
             sed -i '' 's/linux-x86_64/darwin-x86_64/g' "$script" 2>/dev/null || true
           done
           
@@ -49,19 +52,19 @@ workflows:
           
           # Сборка libvpx
           echo "=== Building libvpx ==="
-          ./build_libvpx_clang.sh || echo "libvpx build failed but continuing"
+          ./build_libvpx_clang.sh 2>&1 | tee libvpx.log || echo "libvpx build failed but continuing"
           
           # Сборка FFmpeg с дополнительными флагами
           echo "=== Building FFmpeg ==="
           export CFLAGS="-Wno-error=unused-command-line-argument"
-          ./build_ffmpeg_clang.sh || echo "FFmpeg build failed but continuing"
+          ./build_ffmpeg_clang.sh 2>&1 | tee ffmpeg.log || echo "FFmpeg build failed but continuing"
           
           # Патчи
-          ./patch_ffmpeg.sh || true
-          ./patch_boringssl.sh || true
+          ./patch_ffmpeg.sh 2>&1 | tee ffmpeg_patch.log || true
+          ./patch_boringssl.sh 2>&1 | tee boringssl_patch.log || true
           
           # Сборка BoringSSL
-          ./build_boringssl.sh || echo "BoringSSL build failed but continuing"
+          ./build_boringssl.sh 2>&1 | tee boringssl.log || echo "BoringSSL build failed but continuing"
           
           cd ../../
 
@@ -73,13 +76,18 @@ workflows:
           sed -i '' '/abiFilters/d' TMessagesProj/build.gradle 2>/dev/null || true
           
           # Добавляем флаг для пропуска NDK
-          echo "android.externalNativeBuild.cmake.arguments \"-DANDROID_PLATFORM=android-21\"" >> gradle.properties
-          echo "android.externalNativeBuild.cmake.arguments \"-DANDROID_TOOLCHAIN=clang\"" >> gradle.properties
+          echo "" >> gradle.properties
+          echo "# NDK settings" >> gradle.properties
+          echo "android.externalNativeBuild.cmake.arguments=-DANDROID_PLATFORM=android-21,-DANDROID_TOOLCHAIN=clang" >> gradle.properties
+          
+          echo "=== patched build.gradle ==="
+          head -50 TMessagesProj/build.gradle | grep -i ndk || true
 
       # 7. ФИНАЛЬНАЯ СБОРКА
       - name: Build APK
         script: |
           chmod +x gradlew
+          
           # Пробуем разные варианты сборки
           echo "=== Попытка 1: с пропуском NDK ==="
           ./gradlew clean
@@ -92,10 +100,10 @@ workflows:
           ./gradlew assembleAfatRelease -x ndkBuild -x generateJsonModel
 
     artifacts:
-      # Сохраняем всё, что может пригодиться
-      - TMessagesProj/build/outputs/apk/afat/release/*.apk
+      # Пути к артефактам - исправлено! (убраны звездочки)
+      - TMessagesProj/build/outputs/apk/afat/release/
       - TMessagesProj/jni/*.log
-      - *.log
+      - "*.log"
 
     publishing:
       email:
