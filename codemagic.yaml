@@ -1,16 +1,52 @@
 workflows:
   telegram-foss-workflow:
     name: Build Telegram-FOSS APK
-    max_build_duration: 60
+    max_build_duration: 45
     environment:
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
     scripts:
-      # Только самое необходимое
+      # 1. Скачиваем готовые прекомпилированные библиотеки FFmpeg
+      - name: Download prebuilt FFmpeg
+        script: |
+          cd TMessagesProj/jni
+
+          # Создаём структуру папок, которую ожидает NDK
+          mkdir -p ffmpeg/build/armeabi-v7a/lib
+          mkdir -p ffmpeg/build/arm64-v8a/lib
+          mkdir -p ffmpeg/build/x86/lib
+          mkdir -p ffmpeg/build/x86_64/lib
+
+          # Скачиваем готовые собранные библиотеки FFmpeg (с официального зеркала)
+          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-armeabi-v7a.tar.gz
+          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-arm64-v8a.tar.gz
+          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-x86.tar.gz
+          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-x86_64.tar.gz
+
+          # Распаковываем каждую архитектуру в нужное место
+          tar -xzf ffmpeg-armeabi-v7a.tar.gz -C ffmpeg/build/armeabi-v7a/lib --strip-components=1
+          tar -xzf ffmpeg-arm64-v8a.tar.gz -C ffmpeg/build/arm64-v8a/lib --strip-components=1
+          tar -xzf ffmpeg-x86.tar.gz -C ffmpeg/build/x86/lib --strip-components=1
+          tar -xzf ffmpeg-x86_64.tar.gz -C ffmpeg/build/x86_64/lib --strip-components=1
+
+          # Проверяем, что критический файл libswscale.a теперь на месте
+          echo "Проверка: libswscale.a должен быть здесь:"
+          find . -name "libswscale.a" -type f
+
+          cd ../../
+
+      # 2. Сборка APK (без компиляции FFmpeg)
       - name: Build APK
         script: |
           chmod +x gradlew
           ./gradlew clean
           ./gradlew assembleAfatRelease
+
     artifacts:
+      # Сохраняем готовый APK
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - washingtonfizcl@gmail.com  # замени на свой
