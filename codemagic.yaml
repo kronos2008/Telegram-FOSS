@@ -6,37 +6,19 @@ workflows:
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
     scripts:
-      # Устанавливаем всё необходимое
       - name: Install tools
         script: |
           brew install ninja cmake go wget
 
-      # Скачиваем NDK вручную
-      - name: Download NDK manually
+      - name: Download NDK
         script: |
           cd $HOME
-          wget https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip
+          wget -q https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip
           unzip -q android-ndk-r21e-darwin-x86_64.zip
           mkdir -p $ANDROID_HOME/ndk/21.4.7075529
           mv android-ndk-r21e/* $ANDROID_HOME/ndk/21.4.7075529/
-          rm -rf android-ndk-r21e android-ndk-r21e-darwin-x86_64.zip
-          ls -la $ANDROID_HOME/ndk/
+          rm -rf android-ndk-r21e*
 
-      # ПРОВЕРЯЕМ, ЧТО ФАЙЛ API_KEYS ЕСТЬ
-      - name: Check API_KEYS file
-        script: |
-          echo "Current directory: $(pwd)"
-          echo "Files in root:"
-          ls -la
-          echo "Content of API_KEYS:"
-          cat API_KEYS || echo "API_KEYS file not found!"
-
-      # КОПИРУЕМ API_KEYS В TMessagesProj (на всякий случай)
-      - name: Copy API_KEYS to TMessagesProj
-        script: |
-          cp API_KEYS TMessagesProj/ || echo "Copy failed, but continuing..."
-
-      # Сборка нативных зависимостей
       - name: Build native libs
         script: |
           cd TMessagesProj/jni
@@ -50,14 +32,51 @@ workflows:
           ./build_boringssl.sh
           cd ../../
 
-      # Сборка APK
+      # ПРОВЕРЯЕМ ОБА ВАРИАНТА ФАЙЛА
+      - name: Check both API_KEYS files
+        script: |
+          echo "=== Поиск API_KEYS ==="
+          echo "Корневая папка: $(pwd)"
+          echo "Содержимое:"
+          ls -la
+          echo ""
+          echo "Поиск API_KEYS (без расширения):"
+          find . -name "API_KEYS" -type f 2>/dev/null || echo "Не найден"
+          echo ""
+          echo "Поиск API_KEYS.txt:"
+          find . -name "API_KEYS.txt" -type f 2>/dev/null || echo "Не найден"
+          echo ""
+          echo "Содержимое API_KEYS.txt (если есть):"
+          cat API_KEYS.txt 2>/dev/null || echo "Файл не существует"
+          echo ""
+          echo "Содержимое API_KEYS (если есть):"
+          cat API_KEYS 2>/dev/null || echo "Файл не существует"
+
+      # КОПИРУЕМ ЛЮБОЙ НАЙДЕННЫЙ ФАЙЛ
+      - name: Copy keys to TMessagesProj
+        script: |
+          if [ -f "API_KEYS.txt" ]; then
+            echo "Копируем API_KEYS.txt"
+            cp API_KEYS.txt TMessagesProj/API_KEYS
+          elif [ -f "API_KEYS" ]; then
+            echo "Копируем API_KEYS"
+            cp API_KEYS TMessagesProj/
+          else
+            echo "НИ ОДИН ФАЙЛ НЕ НАЙДЕН!"
+            exit 1
+          fi
+
+      # ПАТЧИМ build.gradle
+      - name: Patch build.gradle
+        script: |
+          echo "Патчим build.gradle для правильного пути"
+          sed -i '' 's|\.\/API_KEYS|\.\/TMessagesProj\/API_KEYS|g' TMessagesProj/build.gradle 2>/dev/null || \
+          sed -i 's|\.\/API_KEYS|\.\/TMessagesProj\/API_KEYS|g' TMessagesProj/build.gradle
+
+      # СБОРКА
       - name: Build APK
         script: |
           chmod +x gradlew
-          # Показываем, где ищем файл
-          echo "Looking for API_KEYS in: $(pwd)"
-          ls -la TMessagesProj/ | grep API
-          # Собираем
           ./gradlew clean
           ./gradlew assembleAfatRelease
 
