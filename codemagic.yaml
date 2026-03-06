@@ -9,21 +9,17 @@ workflows:
       # Устанавливаем всё необходимое
       - name: Install tools
         script: |
-          brew install ninja cmake go
+          brew install ninja cmake go wget
 
-      # Устанавливаем Java 11 для sdkmanager
-      - name: Setup Java 11
+      # Скачиваем NDK вручную (без sdkmanager)
+      - name: Download NDK manually
         script: |
-          brew install openjdk@11
-          export JAVA_HOME=/opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home
-          echo 'export JAVA_HOME=/opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home' >> ~/.zshrc
-          source ~/.zshrc
-
-      # Скачиваем нужную версию NDK (с Java 11)
-      - name: Setup NDK
-        script: |
-          export JAVA_HOME=/opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home
-          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager "ndk;21.4.7075529"
+          cd $HOME
+          wget https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip
+          unzip -q android-ndk-r21e-darwin-x86_64.zip
+          mv android-ndk-r21e $ANDROID_HOME/ndk/21.4.7075529
+          rm android-ndk-r21e-darwin-x86_64.zip
+          ls -la $ANDROID_HOME/ndk/
 
       # Сборка нативных зависимостей
       - name: Build native libs
