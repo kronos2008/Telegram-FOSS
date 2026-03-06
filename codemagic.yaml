@@ -8,67 +8,25 @@ workflows:
     scripts:
       - name: Install tools
         script: |
-          brew install ninja cmake go wget
+          brew install ninja cmake
 
-      - name: Download NDK
-        script: |
-          cd $HOME
-          wget -q https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip
-          unzip -q android-ndk-r21e-darwin-x86_64.zip
-          mkdir -p $ANDROID_HOME/ndk/21.4.7075529
-          mv android-ndk-r21e/* $ANDROID_HOME/ndk/21.4.7075529/
-          rm -rf android-ndk-r21e*
-
-      # Вместо сборки - используем готовые библиотеки
-      - name: Download prebuilt FFmpeg and libs
+      - name: Build native libs (simplified)
         script: |
           cd TMessagesProj/jni
-          
-          # Создаем структуру папок
-          mkdir -p ffmpeg/build/armeabi-v7a/lib
-          mkdir -p ffmpeg/build/arm64-v8a/lib
-          mkdir -p ffmpeg/build/x86/lib
-          mkdir -p ffmpeg/build/x86_64/lib
-          
-          # Скачиваем готовые библиотеки для FFmpeg (с официального репозитория Telegram-FOSS)
-          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-armeabi-v7a.tar.gz
-          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-arm64-v8a.tar.gz
-          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-x86.tar.gz
-          wget -q https://github.com/Telegram-FOSS-Team/Telegram-FOSS/releases/download/continuous/ffmpeg-x86_64.tar.gz
-          
-          # Распаковываем
-          tar -xzf ffmpeg-armeabi-v7a.tar.gz -C ffmpeg/build/armeabi-v7a/lib
-          tar -xzf ffmpeg-arm64-v8a.tar.gz -C ffmpeg/build/arm64-v8a/lib
-          tar -xzf ffmpeg-x86.tar.gz -C ffmpeg/build/x86/lib
-          tar -xzf ffmpeg-x86_64.tar.gz -C ffmpeg/build/x86_64/lib
-          
-          # Проверяем, что libswscale.a появился
-          echo "=== Проверка libswscale.a ==="
-          find . -name "libswscale.a" -type f
-          
-          cd ../../
-
-      # Пропускаем сборку BoringSSL (тоже берем готовую)
-      - name: Setup BoringSSL
-        script: |
-          cd TMessagesProj/jni
-          mkdir -p boringssl/build/armeabi-v7a
-          mkdir -p boringssl/build/arm64-v8a
-          mkdir -p boringssl/build/x86
-          mkdir -p boringssl/build/x86_64
-          
-          # Создаем пустые заглушки (для обхода)
-          touch boringssl/build/armeabi-v7a/libcrypto.a
-          touch boringssl/build/arm64-v8a/libcrypto.a
-          touch boringssl/build/x86/libcrypto.a
-          touch boringssl/build/x86_64/libcrypto.a
+          export NDK=$ANDROID_HOME/ndk-bundle
+          # Пытаемся собрать только необходимое
+          chmod +x *.sh
+          ./build_libvpx_clang.sh || true
+          ./build_ffmpeg_clang.sh || true
+          ./patch_ffmpeg.sh || true
+          ./patch_boringssl.sh || true
+          ./build_boringssl.sh || true
           cd ../../
 
       - name: Build APK
         script: |
           chmod +x gradlew
-          ./gradlew clean
-          ./gradlew assembleAfatRelease
+          ./gradlew assembleAfatRelease -x compileDebugNdk -x compileReleaseNdk
 
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
