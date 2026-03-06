@@ -1,23 +1,23 @@
 workflows:
   telegram-foss-workflow:
     name: Build Telegram-FOSS APK
-    max_build_duration: 45
+    max_build_duration: 60
     environment:
       vars:
         CM_BUILD_NUMBER: $BUILD_NUMBER
       android_sdk_ndk: 21.4.7075529
     scripts:
-      # 1. Устанавливаем необходимые системные инструменты
+      # 1. Устанавливаем необходимые инструменты
       - name: Install build tools
         script: |
           brew install ninja cmake go
 
-      # 2. Переходим в папку с нативным кодом для сборки зависимостей
-      - name: Build native dependencies (FFmpeg, BoringSSL)
+      # 2. Сборка нативных зависимостей
+      - name: Build native dependencies
         script: |
           cd TMessagesProj/jni
           export NDK=$ANDROID_HOME/ndk/21.4.7075529
-          export NINJA_PATH=/opt/homebrew/bin/ninja
+          export NINJA_PATH=/usr/local/bin/ninja
           chmod +x *.sh
           ./build_libvpx_clang.sh
           ./build_ffmpeg_clang.sh
@@ -26,14 +26,16 @@ workflows:
           ./build_boringssl.sh
           cd ../../
 
-      # 3. Собираем APK
+      # 3. Сборка APK
       - name: Build APK
         script: |
           chmod +x gradlew
           ./gradlew clean
           ./gradlew assembleAfatRelease
+
     artifacts:
       - TMessagesProj/build/outputs/apk/afat/release/*.apk
+
     publishing:
       email:
         recipients:
